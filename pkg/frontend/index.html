@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Время</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Courier New', Courier, monospace;
+            background: #0a0a0f;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .scene {
+            position: relative;
+            text-align: center;
+        }
+
+        .glow-ring {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 420px;
+            height: 420px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(100,200,255,0.05) 0%, transparent 70%);
+            box-shadow:
+                0 0 60px rgba(100,200,255,0.08),
+                0 0 120px rgba(100,200,255,0.04);
+            pointer-events: none;
+        }
+
+        .clock-face {
+            position: relative;
+            width: 340px;
+            height: 340px;
+            border-radius: 50%;
+            border: 2px solid rgba(100,200,255,0.15);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: radial-gradient(circle at 30% 30%, #141428, #0a0a18);
+            box-shadow:
+                inset 0 0 40px rgba(0,0,0,0.6),
+                0 0 0 1px rgba(100,200,255,0.08),
+                0 20px 60px rgba(0,0,0,0.5);
+        }
+
+        .tick-marks {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+        }
+
+        .tick {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform-origin: 0 0;
+        }
+
+        .tick::after {
+            content: '';
+            display: block;
+            position: absolute;
+            background: rgba(100,200,255,0.25);
+            border-radius: 2px;
+        }
+
+        .tick.major::after {
+            width: 2px;
+            height: 14px;
+            margin-left: -1px;
+            margin-top: -155px;
+            background: rgba(100,200,255,0.5);
+        }
+
+        .tick.minor::after {
+            width: 1px;
+            height: 7px;
+            margin-left: -0.5px;
+            margin-top: -152px;
+        }
+
+        .hands {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+        }
+
+        .hand {
+            position: absolute;
+            bottom: 50%;
+            left: 50%;
+            transform-origin: bottom center;
+            border-radius: 4px;
+        }
+
+        .hand-hour {
+            width: 4px;
+            height: 90px;
+            margin-left: -2px;
+            background: linear-gradient(to top, rgba(100,200,255,0.9), rgba(100,200,255,0.4));
+            box-shadow: 0 0 8px rgba(100,200,255,0.4);
+            border-radius: 4px 4px 0 0;
+        }
+
+        .hand-minute {
+            width: 2px;
+            height: 120px;
+            margin-left: -1px;
+            background: linear-gradient(to top, rgba(180,230,255,0.9), rgba(180,230,255,0.3));
+            box-shadow: 0 0 6px rgba(180,230,255,0.3);
+            border-radius: 2px 2px 0 0;
+        }
+
+        .hand-second {
+            width: 1px;
+            height: 130px;
+            margin-left: -0.5px;
+            background: linear-gradient(to top, rgba(255,100,100,0.9), rgba(255,100,100,0.2));
+            box-shadow: 0 0 6px rgba(255,100,100,0.5);
+            border-radius: 1px 1px 0 0;
+        }
+
+        .center-dot {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: rgba(100,200,255,0.9);
+            box-shadow: 0 0 10px rgba(100,200,255,0.6);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+        }
+
+        .time-display {
+            margin-top: 32px;
+            letter-spacing: 0.15em;
+        }
+
+        .time-text {
+            font-size: 3.2rem;
+            font-weight: 700;
+            color: rgba(100,200,255,0.9);
+            text-shadow: 0 0 20px rgba(100,200,255,0.4);
+        }
+
+        .date-text {
+            margin-top: 8px;
+            font-size: 0.85rem;
+            color: rgba(100,200,255,0.35);
+            letter-spacing: 0.25em;
+            text-transform: uppercase;
+        }
+
+        .frozen-label {
+            margin-top: 24px;
+            font-size: 0.7rem;
+            color: rgba(255,255,255,0.12);
+            letter-spacing: 0.4em;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+<body>
+    <div class="scene">
+        <div class="glow-ring"></div>
+
+        <div class="clock-face">
+            <div class="tick-marks" id="ticks"></div>
+            <div class="hands">
+                <div class="hand hand-hour"  id="hour"></div>
+                <div class="hand hand-minute" id="minute"></div>
+                <div class="hand hand-second" id="second"></div>
+            </div>
+            <div class="center-dot"></div>
+        </div>
+
+        <div class="time-display">
+            <div class="time-text" id="timeText">{{.Time.Format "15:04:05"}}</div>
+            <div class="date-text">{{.Time.Format "02.01.2006"}}</div>
+        </div>
+
+        <div class="frozen-label">время остановлено</div>
+    </div>
+
+    <script>
+        // Draw tick marks
+        const ticksEl = document.getElementById('ticks');
+        for (let i = 0; i < 60; i++) {
+            const tick = document.createElement('div');
+            tick.className = 'tick ' + (i % 5 === 0 ? 'major' : 'minor');
+            tick.style.transform = `rotate(${i * 6}deg)`;
+            ticksEl.appendChild(tick);
+        }
+
+        // Parse frozen time from server
+        const timeStr = document.getElementById('timeText').textContent.trim();
+        const parts = timeStr.split(':').map(Number);
+        const h = parts[0], m = parts[1], s = parts[2];
+
+        const hourDeg   = (h % 12) * 30 + m * 0.5 + s * (0.5 / 60);
+        const minuteDeg = m * 6 + s * 0.1;
+        const secondDeg = s * 6;
+
+        document.getElementById('hour').style.transform   = `rotate(${hourDeg}deg)`;
+        document.getElementById('minute').style.transform = `rotate(${minuteDeg}deg)`;
+        document.getElementById('second').style.transform = `rotate(${secondDeg}deg)`;
+    </script>
+</body>
+</html>

@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -12,27 +11,24 @@ import (
 	"syscall"
 	"time"
 
-	"apisrv/pkg/app"
-	"apisrv/pkg/db"
+	"frontend/pkg/app"
 
 	"github.com/BurntSushi/toml"
 	"github.com/getsentry/sentry-go"
-	"github.com/go-pg/pg/v10"
 	"github.com/namsral/flag"
 	"github.com/vmkteam/appkit"
 	"github.com/vmkteam/embedlog"
 )
 
-const appName = "apisrv"
+const appName = "frontend"
 
 var (
-	fs                 = flag.NewFlagSetWithEnvPrefix(os.Args[0], strings.ToUpper(appName), 0)
-	flConfigPath       = fs.String("config", "config.toml", "Path to config file")
-	flVerbose          = fs.Bool("verbose", false, "enable debug output")
-	flJSONLogs         = fs.Bool("json", false, "enable json output")
-	flDev              = fs.Bool("dev", false, "enable dev mode")
-	flGenerateTSClient = fs.Bool("ts_client", false, "generate TypeScript vt rpc client and exit")
-	cfg                app.Config
+	fs           = flag.NewFlagSetWithEnvPrefix(os.Args[0], strings.ToUpper(appName), 0)
+	flConfigPath = fs.String("config", "config.toml", "Path to config file")
+	flVerbose    = fs.Bool("verbose", false, "enable debug output")
+	flJSONLogs   = fs.Bool("json", false, "enable json output")
+	flDev        = fs.Bool("dev", false, "enable dev mode")
+	cfg          app.Config
 )
 
 func main() {
@@ -45,8 +41,6 @@ func main() {
 		sl = embedlog.NewDevLogger()
 	}
 	slog.SetDefault(sl.Log()) // set default logger
-	ql := db.NewQueryLogger(sl)
-	pg.SetLogger(ql)
 
 	version := appkit.Version()
 	sl.Print(ctx, "starting", "app", appName, "version", version)
@@ -63,35 +57,8 @@ func main() {
 		}))
 	}
 
-	// check db connection
-	pgdb := pg.Connect(cfg.Database)
-	dbc := db.New(pgdb)
-
-	v, err := dbc.Version()
-	exitOnError(err)
-	sl.Print(ctx, "connected to db", "version", v)
-
-	// log all sql queries
-	if *flDev {
-		pgdb.AddQueryHook(ql)
-	}
-
 	// create & run app
-	a := app.New(appName, sl, cfg, dbc, pgdb)
-
-	// enable vfs
-	if cfg.Server.EnableVFS {
-		err = a.RegisterVFS(cfg.VFS)
-		exitOnError(err)
-	}
-
-	// generate TS client from cmd flags
-	if *flGenerateTSClient {
-		b, er := a.VTTypeScriptClient()
-		exitOnError(er)
-		_, _ = fmt.Fprint(os.Stdout, string(b))
-		os.Exit(0)
-	}
+	a := app.New(appName, sl, cfg)
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
@@ -118,7 +85,7 @@ func main() {
 
 	<-quit
 
-	if err = a.Shutdown(5 * time.Second); err != nil {
+	if err := a.Shutdown(5 * time.Second); err != nil {
 		a.Error(ctx, "shutting down service", "err", err)
 	}
 }
